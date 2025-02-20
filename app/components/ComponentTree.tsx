@@ -9,6 +9,7 @@ import ReactFlow, {
     Panel,
     useNodesState,
     useEdgesState,
+    useReactFlow,
 } from 'reactflow';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import 'reactflow/dist/style.css';
@@ -16,6 +17,8 @@ import { Component } from '../types/machines';
 
 const NODE_WIDTH = 250;
 const NODE_HEIGHT = 100;
+const ZOOM_LEVEL = 1.5;
+const ZOOM_DURATION = 800;
 
 const elk = new ELK();
 
@@ -85,20 +88,45 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const containerRef = useRef<HTMLDivElement>(null);
     const idCounterRef = useRef<{ [key: string]: number }>({});
+    const { setViewport, getNode } = useReactFlow();
 
     const getUniqueId = useCallback((baseName: string) => {
         idCounterRef.current[baseName] = (idCounterRef.current[baseName] || 0) + 1;
         return idCounterRef.current[baseName] === 1 ? baseName : `${baseName}-${idCounterRef.current[baseName]}`;
     }, []);
 
+    const zoomToNode = useCallback((nodeId: string) => {
+        const node = getNode(nodeId);
+        if (!node) return;
+
+        // Calculate the center position of the node
+        const x = node.position.x + NODE_WIDTH / 2;
+        const y = node.position.y + NODE_HEIGHT / 2;
+
+        // Smoothly zoom to the node
+        setViewport(
+            {
+                x: -x * ZOOM_LEVEL + window.innerWidth / 2,
+                y: -y * ZOOM_LEVEL + window.innerHeight / 2,
+                zoom: ZOOM_LEVEL,
+            },
+            { duration: ZOOM_DURATION }
+        );
+    }, [getNode, setViewport]);
+
     const handleNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
         // Extract original name from potentially numbered ID
         const originalName = node.id.split('-').slice(0, -1).join('-') || node.id;
         const component = findComponent(rootComponent, originalName);
         if (component) {
-            onExpand(component);
+            // First zoom to the clicked node
+            zoomToNode(node.id);
+            // Then expand after a short delay to let the zoom animation complete
+            setTimeout(() => {
+                onExpand(component);
+            }, ZOOM_DURATION / 2);
         }
-    }, [onExpand, rootComponent]);
+    }, [onExpand, rootComponent, zoomToNode]);
 
     const findComponent = (root: Component | null, name: string): Component | null => {
         if (!root) return null;
@@ -118,41 +146,41 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
         const nodes: Node[] = [];
         const edges: Edge[] = [];
 
-        // Reset ID counters when starting from root
         if (level === 0) {
             idCounterRef.current = {};
         }
 
-        // Create unique ID for this node
         const nodeId = getUniqueId(component.name);
 
-        // Create node for current component
         const newNode: Node = {
             id: nodeId,
-            position: { x: 0, y: 0 }, // Position will be set by ELK
+            position: { x: 0, y: 0 },
             data: {
                 label: component.name,
                 subLabel: 'Click to expand'
             },
             draggable: false,
             className: 'bg-white dark:bg-gray-800 border-2 border-blue-500 dark:border-blue-400 rounded-lg p-4 hover:shadow-xl hover:border-blue-600 dark:hover:border-blue-500 transition-all shadow-[0_8px_16px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_16px_rgba(0,0,0,0.3)] cursor-pointer',
+            style: { transition: 'all 0.3s ease-in-out' },
         };
         nodes.push(newNode);
 
-        // Create edge if there's a parent
         if (parentId) {
             const newEdge: Edge = {
                 id: `${parentId}-${nodeId}`,
                 source: parentId,
                 target: nodeId,
                 type: 'smoothstep',
-                style: { stroke: '#94a3b8', strokeWidth: 2 },
+                style: {
+                    stroke: '#94a3b8',
+                    strokeWidth: 2,
+                    transition: 'all 0.3s ease-in-out'
+                },
                 animated: false,
             };
             edges.push(newEdge);
         }
 
-        // Create nodes and edges for children
         if (component.children.length > 0) {
             component.children.forEach((child) => {
                 const childElements = createNodesAndEdges(child, nodeId, level + 1);
@@ -166,13 +194,8 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
 
     useEffect(() => {
         if (rootComponent) {
-            // Create nodes and edges
             const elements = createNodesAndEdges(rootComponent, null);
-
-            // Apply the layout
             getLayoutedElements(elements.nodes, elements.edges).then(({ nodes: layoutedNodes, edges: layoutedEdges }) => {
-                console.log('Generated nodes:', layoutedNodes);
-                console.log('Generated edges:', layoutedEdges);
                 setNodes(layoutedNodes);
                 setEdges(layoutedEdges);
             });
@@ -190,7 +213,10 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                 nodesDraggable={false}
                 nodesConnectable={false}
                 fitView
-                fitViewOptions={{ padding: 0.3 }}
+                fitViewOptions={{
+                    padding: 0.3,
+                    duration: ZOOM_DURATION
+                }}
                 className="dark:bg-slate-900"
             >
                 <Background
