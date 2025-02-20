@@ -3,7 +3,7 @@ import { Machine, Component, MachineSchema } from '../../types/machines';
 
 const llm = new OpenAI({
   baseURL: 'https://api.groq.com/openai/v1',
-  apiKey: process.env.GROQ_API_KEY,
+  apiKey: process.env.GROQ_API_KEY || '',
 });
 
 export async function generateMachineData(machineName: string): Promise<Machine> {
