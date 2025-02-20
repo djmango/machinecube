@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import ReactFlow, {
     Node,
     Edge,
@@ -24,9 +24,6 @@ const getLayoutedElements = async (nodes: Node[], edges: Edge[]) => {
         id: node.id,
         width: NODE_WIDTH,
         height: NODE_HEIGHT,
-        // ELK requires fixed positions for initial layout
-        x: node.position.x,
-        y: node.position.y,
     }));
 
     const elkEdges = edges.map((edge) => ({
@@ -40,11 +37,20 @@ const getLayoutedElements = async (nodes: Node[], edges: Edge[]) => {
         layoutOptions: {
             'elk.algorithm': 'layered',
             'elk.direction': 'DOWN',
-            'elk.spacing.nodeNode': '80',
+            'elk.spacing.nodeNode': '150',
             'elk.layered.spacing.nodeNodeBetweenLayers': '100',
-            'elk.edgeRouting': 'ORTHOGONAL',
-            'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
-            'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX'
+            'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
+            'elk.layered.crossingMinimization.strategy': 'INTERACTIVE',
+            'elk.layered.considerModelOrder.strategy': 'PREFER_NODES',
+            'elk.layered.spacing.edgeNode': '80',
+            'elk.layered.spacing.edgeEdge': '80',
+            'elk.spacing.componentComponent': '150',
+            'elk.layered.priority.straightness': '10',
+            'elk.layered.mergeEdges': 'false',
+            'elk.layered.cycleBreaking.strategy': 'INTERACTIVE',
+            'elk.spacing.individual': '50',
+            'elk.layered.crossingMinimization.forceNodeModelOrder': 'true',
+            'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
         },
         children: elkNodes,
         edges: elkEdges,
@@ -77,19 +83,28 @@ interface ComponentTreeProps {
 export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onExpand }) => {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const idCounterRef = useRef<{ [key: string]: number }>({});
+
+    const getUniqueId = useCallback((baseName: string) => {
+        idCounterRef.current[baseName] = (idCounterRef.current[baseName] || 0) + 1;
+        return idCounterRef.current[baseName] === 1 ? baseName : `${baseName}-${idCounterRef.current[baseName]}`;
+    }, []);
 
     const handleNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
-        const component = findComponent(rootComponent, node.id);
+        // Extract original name from potentially numbered ID
+        const originalName = node.id.split('-').slice(0, -1).join('-') || node.id;
+        const component = findComponent(rootComponent, originalName);
         if (component) {
             onExpand(component);
         }
     }, [onExpand, rootComponent]);
 
-    const findComponent = (root: Component | null, id: string): Component | null => {
+    const findComponent = (root: Component | null, name: string): Component | null => {
         if (!root) return null;
-        if (root.name === id) return root;
+        if (root.name === name) return root;
         for (const child of root.children) {
-            const found = findComponent(child, id);
+            const found = findComponent(child, name);
             if (found) return found;
         }
         return null;
@@ -98,13 +113,22 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
     const createNodesAndEdges = useCallback((
         component: Component,
         parentId: string | null = null,
+        level: number = 0
     ): { nodes: Node[], edges: Edge[] } => {
         const nodes: Node[] = [];
         const edges: Edge[] = [];
 
+        // Reset ID counters when starting from root
+        if (level === 0) {
+            idCounterRef.current = {};
+        }
+
+        // Create unique ID for this node
+        const nodeId = getUniqueId(component.name);
+
         // Create node for current component
         const newNode: Node = {
-            id: component.name,
+            id: nodeId,
             position: { x: 0, y: 0 }, // Position will be set by ELK
             data: {
                 label: component.name,
@@ -118,9 +142,9 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
         // Create edge if there's a parent
         if (parentId) {
             const newEdge: Edge = {
-                id: `${parentId}-${component.name}`,
+                id: `${parentId}-${nodeId}`,
                 source: parentId,
-                target: component.name,
+                target: nodeId,
                 type: 'smoothstep',
                 style: { stroke: '#94a3b8', strokeWidth: 2 },
                 animated: false,
@@ -131,21 +155,21 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
         // Create nodes and edges for children
         if (component.children.length > 0) {
             component.children.forEach((child) => {
-                const childElements = createNodesAndEdges(child, component.name);
+                const childElements = createNodesAndEdges(child, nodeId, level + 1);
                 nodes.push(...childElements.nodes);
                 edges.push(...childElements.edges);
             });
         }
 
         return { nodes, edges };
-    }, []);
+    }, [getUniqueId]);
 
     useEffect(() => {
         if (rootComponent) {
-            // First create nodes and edges without positions
+            // Create nodes and edges
             const elements = createNodesAndEdges(rootComponent, null);
 
-            // Then apply the layout
+            // Apply the layout
             getLayoutedElements(elements.nodes, elements.edges).then(({ nodes: layoutedNodes, edges: layoutedEdges }) => {
                 console.log('Generated nodes:', layoutedNodes);
                 console.log('Generated edges:', layoutedEdges);
@@ -156,7 +180,7 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
     }, [rootComponent, createNodesAndEdges, setNodes, setEdges]);
 
     return (
-        <div className="w-full h-full bg-slate-50 dark:bg-slate-900">
+        <div ref={containerRef} className="w-full h-full bg-slate-50 dark:bg-slate-900">
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
@@ -166,7 +190,7 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                 nodesDraggable={false}
                 nodesConnectable={false}
                 fitView
-                fitViewOptions={{ padding: 0.2 }}
+                fitViewOptions={{ padding: 0.3 }}
                 className="dark:bg-slate-900"
             >
                 <Background
