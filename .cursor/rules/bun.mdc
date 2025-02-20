@@ -1,0 +1,9 @@
+---
+description: CLI commands, project management, npm, bun
+globs: 
+---
+
+# Your rule content
+
+- Use bun and bunx instead of npm and npmx
+- For wrangler commands, preface with bunx

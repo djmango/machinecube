@@ -1,14 +1,11 @@
 export interface Component {
   name: string;
-  description: string;
-  imageUrl: string;
-  requiredMachines: Machine[];
+  type: 'component' | 'material';
+  hasChildren?: boolean; // Indicates if this node can be expanded
 }
 
 export interface Machine {
   name: string;
-  imageUrl: string;
-  description: string;
   components: Component[];
 }
 
@@ -22,8 +19,8 @@ export namespace Machine {
     name: "string",
     components: [{
       name: "string",
-      process: "string",
-      requiredMachines: ["string"]
+      type: "component",
+      hasChildren: true
     }]
   } as const;
 } 

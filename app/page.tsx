@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
-import Image from "next/image";
 import { Machine } from "./types/machines";
+import { MachineGraph } from './components/MachineGraph';
 
 export default function Home() {
   const [machineName, setMachineName] = useState('');
@@ -32,85 +32,48 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen p-8">
-      <main className="max-w-6xl mx-auto">
-        {/* Header */}
-        <h1 className="text-3xl font-bold mb-8">Machine Component Explorer</h1>
-
-        {/* Search Section */}
-        <form onSubmit={handleSubmit} className="mb-8">
+    <div className="fixed inset-0 overflow-hidden bg-gray-50">
+      {/* Floating search box */}
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 w-full max-w-xl px-4">
+        <form onSubmit={handleSubmit} className="relative">
           <input
             type="text"
             value={machineName}
             onChange={(e) => setMachineName(e.target.value)}
             placeholder="Enter machine name..."
-            className="p-2 border rounded mr-2"
+            className="w-full p-4 rounded-xl shadow-lg bg-white/90 backdrop-blur border border-gray-100 pr-24
+                     focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             disabled={loading}
           />
           <button
             type="submit"
             disabled={loading}
-            className="bg-blue-500 text-white px-4 py-2 rounded"
+            className="absolute right-2 top-1/2 -translate-y-1/2 bg-blue-500 text-white px-4 py-2 rounded-lg
+                     hover:bg-blue-600 disabled:bg-blue-300 transition-colors"
           >
             {loading ? 'Generating...' : 'Generate'}
           </button>
         </form>
-
         {error && (
-          <div className="text-red-500 mb-4">{error}</div>
-        )}
-
-        {machine && (
-          <div className="border rounded p-4">
-            <h2 className="text-2xl font-bold mb-4">{machine.name}</h2>
-            <p className="mb-4">{machine.description}</p>
-            <h3 className="text-xl font-semibold mb-2">Components:</h3>
-            <ul className="list-disc pl-5">
-              {machine.components.map((component, i) => (
-                <li key={i} className="mb-2">
-                  <h4 className="font-semibold">{component.name}</h4>
-                  <p>{component.description}</p>
-                </li>
-              ))}
-            </ul>
+          <div className="mt-2 text-red-500 text-center bg-white/90 backdrop-blur rounded-lg p-2 shadow-lg">
+            {error}
           </div>
         )}
+      </div>
 
-        {/* Display Area */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Machine Display */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">Selected Machine</h2>
-            <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
-              {loading ? (
-                <p>Loading...</p>
-              ) : machine ? (
-                <div className="text-center">
-                  <Image
-                      src={machine.imageUrl}
-                      alt={machine.name}
-                      width={300}
-                      height={300}
-                      className="rounded-lg"
-                    />
-                  <h3 className="mt-4 font-semibold">{machine.name}</h3>
-                  <p className="text-sm text-gray-600">{machine.description}</p>
-                </div>
-              ) : (
-                <p className="text-gray-500">No machine selected</p>
-              )}
+      {/* Full-screen graph */}
+      <div className="absolute inset-0">
+        {loading ? (
+          <div className="w-full h-full flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+              <p className="text-gray-500">Generating machine data...</p>
             </div>
           </div>
-
-          {/* Component Graph */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">Component Graph</h2>
-            <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
-              <p className="text-gray-500">Select a machine to view components</p>
-            </div>
-          </div>
-        </div>
-      </main>
+        ) : (
+          <MachineGraph machine={machine} />
+        )}
+      </div>
     </div>
   );
 }
