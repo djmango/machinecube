@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MachineCube",
-  description: "MachineCube is a tool for visualizing and understanding machine components and their relationships.",
+  title: "Everything is made of other things",
+  description: "A tool for visualizing and understanding components and their relationships.",
 };
 
 export default function RootLayout({

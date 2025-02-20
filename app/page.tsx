@@ -116,9 +116,6 @@ export default function Home() {
         <div className="fixed inset-0 flex items-center justify-center bg-black/20 dark:bg-black/40 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl">
             <form onSubmit={handleSubmit} className="flex flex-col items-center gap-4">
-              <h1 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
-                Machine Component Explorer
-              </h1>
               <input
                 type="text"
                 value={inputValue}
@@ -136,7 +133,7 @@ export default function Home() {
                          hover:bg-blue-600 dark:hover:bg-blue-700 disabled:opacity-50
                          transition-colors"
               >
-                {isLoading ? 'Generating...' : 'Generate'}
+                {isLoading ? 'Dividing...' : 'Divide!'}
               </button>
             </form>
           </div>

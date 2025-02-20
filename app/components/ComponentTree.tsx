@@ -42,8 +42,8 @@ const getLayoutedElements = async (nodes: Node[], edges: Edge[]) => {
         layoutOptions: {
             'elk.algorithm': 'layered',
             'elk.direction': 'DOWN',
-            'elk.spacing.nodeNode': '150',
-            'elk.layered.spacing.nodeNodeBetweenLayers': '100',
+            'elk.spacing.nodeNode': '10',
+            'elk.layered.spacing.nodeNodeBetweenLayers': '10',
             'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
             'elk.layered.crossingMinimization.strategy': 'INTERACTIVE',
             'elk.layered.considerModelOrder.strategy': 'PREFER_NODES',
@@ -168,7 +168,7 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
             id: nodeId,
             position: { x: 0, y: 0 },
             data: {
-                label: component.name,
+                label: component.name.replace(/\b\w/g, l => l.toUpperCase()),
                 subLabel: 'Click to expand'
             },
             draggable: false,
@@ -257,6 +257,7 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                     padding: 0.3,
                     duration: ZOOM_DURATION
                 }}
+                proOptions={{ hideAttribution: true }}
                 className="dark:bg-slate-900"
             >
                 <Background
@@ -268,7 +269,11 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                     className="dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300"
                 />
                 <Panel position="top-left" className="dark:text-gray-300 text-sm m-3">
-                    Click nodes to expand
+                    <div className="mt-2">
+                        <a href="https://x.com/sulaimanghori" target="_blank" rel="noopener noreferrer" className="hover:text-blue-500">
+                            Everything is made of other things.
+                        </a>
+                    </div>
                 </Panel>
             </ReactFlow>
         </div>
