@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import ReactFlow, {
     Node,
     Edge,
@@ -20,6 +20,7 @@ const NODE_WIDTH = 250;
 const NODE_HEIGHT = 100;
 const ZOOM_LEVEL = 1.5;
 const ZOOM_DURATION = 800;
+const ANIMATION_DURATION = 300; // ms for node animations
 
 const elk = new ELK();
 
@@ -87,6 +88,8 @@ interface ComponentTreeProps {
 export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onExpand }) => {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const [clickedNodeId, setClickedNodeId] = useState<string | null>(null);
+    const [newNodeIds, setNewNodeIds] = useState<Set<string>>(new Set());
     const containerRef = useRef<HTMLDivElement>(null);
     const idCounterRef = useRef<{ [key: string]: number }>({});
     const { setViewport, getNode } = useReactFlow();
@@ -116,15 +119,24 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
     }, [getNode, setViewport]);
 
     const handleNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
-        // Extract original name from potentially numbered ID
         const originalName = node.id.split('-').slice(0, -1).join('-') || node.id;
         const component = findComponent(rootComponent, originalName);
         if (component) {
-            // Trigger zoom and expansion simultaneously
-            zoomToNode(node.id);
+            setClickedNodeId(node.id);
+            setTimeout(() => setClickedNodeId(null), 300);
+
+            // Mark the new nodes that will be created
+            const newIds = new Set(component.children.map(child => getUniqueId(child.name)));
+            setNewNodeIds(newIds);
+
             onExpand(component);
+            setTimeout(() => {
+                zoomToNode(node.id);
+                // Clear new nodes after animation
+                setTimeout(() => setNewNodeIds(new Set()), ANIMATION_DURATION);
+            }, ANIMATION_DURATION);
         }
-    }, [onExpand, rootComponent, zoomToNode]);
+    }, [onExpand, rootComponent, zoomToNode, getUniqueId]);
 
     const findComponent = (root: Component | null, name: string): Component | null => {
         if (!root) return null;
@@ -149,6 +161,8 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
         }
 
         const nodeId = getUniqueId(component.name);
+        const isClicked = nodeId === clickedNodeId;
+        const isNew = newNodeIds.has(nodeId);
 
         const newNode: Node = {
             id: nodeId,
@@ -158,8 +172,15 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                 subLabel: 'Click to expand'
             },
             draggable: false,
-            className: 'bg-white dark:bg-gray-800 border-2 border-blue-500 dark:border-blue-400 rounded-lg p-4 hover:shadow-xl hover:border-blue-600 dark:hover:border-blue-500 transition-all shadow-[0_8px_16px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_16px_rgba(0,0,0,0.3)] cursor-pointer',
-            style: { transition: 'all 0.3s ease-in-out' },
+            className: `bg-white dark:bg-gray-800 border-2 border-blue-500 dark:border-blue-400 rounded-lg p-4 
+                hover:shadow-xl hover:border-blue-600 dark:hover:border-blue-500 
+                shadow-[0_8px_16px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_16px_rgba(0,0,0,0.3)] 
+                cursor-pointer backdrop-blur-sm transition-all duration-300
+                ${isClicked ? 'scale-110 border-blue-600' : ''}
+                ${isNew ? 'animate-in' : ''}`,
+            style: {
+                opacity: 1,
+            },
         };
         nodes.push(newNode);
 
@@ -172,8 +193,7 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                 style: {
                     stroke: '#94a3b8',
                     strokeWidth: 2,
-                    transition: 'all 0.3s ease-in-out',
-                    animation: 'ease-in-out',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 },
                 animated: true,
                 markerEnd: {
@@ -195,7 +215,7 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
         }
 
         return { nodes, edges };
-    }, [getUniqueId]);
+    }, [getUniqueId, clickedNodeId, newNodeIds]);
 
     useEffect(() => {
         if (rootComponent) {
@@ -209,6 +229,21 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
 
     return (
         <div ref={containerRef} className="w-full h-full bg-slate-50 dark:bg-slate-900">
+            <style jsx global>{`
+                .animate-in {
+                    animation: fadeIn 0.3s ease-out forwards;
+                }
+                @keyframes fadeIn {
+                    from {
+                        opacity: 0;
+                        transform: scale(0.95) translateY(10px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: scale(1) translateY(0);
+                    }
+                }
+            `}</style>
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
