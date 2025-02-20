@@ -10,6 +10,7 @@ import ReactFlow, {
     useNodesState,
     useEdgesState,
     useReactFlow,
+    MarkerType,
 } from 'reactflow';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import 'reactflow/dist/style.css';
@@ -119,12 +120,9 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
         const originalName = node.id.split('-').slice(0, -1).join('-') || node.id;
         const component = findComponent(rootComponent, originalName);
         if (component) {
-            // First zoom to the clicked node
+            // Trigger zoom and expansion simultaneously
             zoomToNode(node.id);
-            // Then expand after a short delay to let the zoom animation complete
-            setTimeout(() => {
-                onExpand(component);
-            }, ZOOM_DURATION / 2);
+            onExpand(component);
         }
     }, [onExpand, rootComponent, zoomToNode]);
 
@@ -174,9 +172,16 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                 style: {
                     stroke: '#94a3b8',
                     strokeWidth: 2,
-                    transition: 'all 0.3s ease-in-out'
+                    transition: 'all 0.3s ease-in-out',
+                    animation: 'ease-in-out',
                 },
-                animated: false,
+                animated: true,
+                markerEnd: {
+                    type: MarkerType.Arrow,
+                    width: 20,
+                    height: 20,
+                    color: '#94a3b8',
+                },
             };
             edges.push(newEdge);
         }
