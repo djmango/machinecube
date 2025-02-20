@@ -1,7 +1,7 @@
 export interface Component {
   name: string;
-  type: 'component' | 'material';
-  hasChildren?: boolean; // Indicates if this node can be expanded
+  children: Component[];
+  parent: Component | null;
 }
 
 export interface Machine {
@@ -21,4 +21,16 @@ export const MachineSchema = {
     type: "component",
     hasChildren: true
   }]
+} as const;
+
+export const ComponentSchema = {
+  type: "object",
+  properties: {
+    name: { type: "string" },
+    children: {
+      type: "array",
+      items: { $ref: "#" }
+    }
+  },
+  required: ["name", "children"]
 } as const; 
