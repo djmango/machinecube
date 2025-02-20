@@ -118,6 +118,16 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
         );
     }, [getNode, setViewport]);
 
+    const findComponent = useCallback((root: Component | null, name: string): Component | null => {
+        if (!root) return null;
+        if (root.name === name) return root;
+        for (const child of root.children) {
+            const found = findComponent(child, name);
+            if (found) return found;
+        }
+        return null;
+    }, []);
+
     const handleNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
         const originalName = node.id.split('-').slice(0, -1).join('-') || node.id;
         const component = findComponent(rootComponent, originalName);
@@ -136,17 +146,7 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                 setTimeout(() => setNewNodeIds(new Set()), ANIMATION_DURATION);
             }, ANIMATION_DURATION);
         }
-    }, [onExpand, rootComponent, zoomToNode, getUniqueId]);
-
-    const findComponent = (root: Component | null, name: string): Component | null => {
-        if (!root) return null;
-        if (root.name === name) return root;
-        for (const child of root.children) {
-            const found = findComponent(child, name);
-            if (found) return found;
-        }
-        return null;
-    };
+    }, [onExpand, rootComponent, zoomToNode, getUniqueId, findComponent]);
 
     const createNodesAndEdges = useCallback((
         component: Component,
