@@ -1,19 +1,16 @@
 import OpenAI from 'openai';
-import { Machine, Component } from '../../types/machines';
-import { getImageForComponent } from './images';
+import { Machine, Component, MachineSchema } from '../../types/machines';
 
 const llm = new OpenAI({
   baseURL: 'https://api.groq.com/openai/v1',
   apiKey: process.env.GROQ_API_KEY,
 });
 
-const PLACEHOLDER_IMAGE = '/machinecube.png';
-
 export async function generateMachineData(machineName: string): Promise<Machine> {
   const systemPrompt = `You are a manufacturing expert. Output only valid JSON matching the following structure.
   Generate only the first level of components. Mark components that can be broken down further with hasChildren: true.
   Mark raw materials with type: "material" and hasChildren: false.
-  ${JSON.stringify(Machine.schema, null, 2)}`;
+  ${JSON.stringify(MachineSchema, null, 2)}`;
 
   const userPrompt = `Generate first-level components for: ${machineName}`;
 
@@ -22,7 +19,7 @@ export async function generateMachineData(machineName: string): Promise<Machine>
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt }
     ],
-    model: "deepseek-r1-distill-llama-70b",
+    model: "gemma2-9b-it",
     response_format: { type: "json_object" },
     temperature: 0.7,
   });
@@ -54,7 +51,7 @@ export async function generateComponents(parentName: string, parentType: string)
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt }
     ],
-    model: "deepseek-r1-distill-llama-70b",
+    model: "gemma2-9b-it",
     response_format: { type: "json_object" },
     temperature: 0.7,
   });

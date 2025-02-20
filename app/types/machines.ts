@@ -14,13 +14,11 @@ export interface MachineLookupResult {
   timestamp: number;
 }
 
-export namespace Machine {
-  export const schema = {
+export const MachineSchema = {
+  name: "string",
+  components: [{
     name: "string",
-    components: [{
-      name: "string",
-      type: "component",
-      hasChildren: true
-    }]
-  } as const;
-} 
+    type: "component",
+    hasChildren: true
+  }]
+} as const; 

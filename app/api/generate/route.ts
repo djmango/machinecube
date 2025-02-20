@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { generateMachineData } from '@/app/api/_services/llm';
 
+export const runtime = 'edge';
+
 interface GenerateRequest {
   machineName: string;
 }

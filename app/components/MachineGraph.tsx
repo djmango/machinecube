@@ -3,6 +3,8 @@ import { Machine, Component } from '@/app/types/machines';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { getImageForComponent } from '@/app/api/_services/images';
+import type { ForceGraphMethods } from 'react-force-graph-2d';
+import type { NodeObject } from 'react-force-graph-2d';
 
 // Dynamically import ForceGraph2D with no SSR
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
@@ -32,15 +34,10 @@ interface GraphLink {
   target: string;
 }
 
-interface GraphData {
-  nodes: GraphNode[];
-  links: GraphLink[];
-}
-
 export function MachineGraph({ machine }: MachineGraphProps) {
-  const fgRef = useRef<any>(null);
+  const fgRef = useRef<ForceGraphMethods>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [, setDimensions] = useState({ width: 0, height: 0 });
   const [nodeSize, setNodeSize] = useState(20);
   const [chargeForce, setChargeForce] = useState(-300);
   const [linkDistance, setLinkDistance] = useState(100);
@@ -51,6 +48,43 @@ export function MachineGraph({ machine }: MachineGraphProps) {
 
   // Load and cache images
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
+
+  const graphData = useCallback(() => {
+    if (!machine) return { nodes: [], links: [] };
+
+    const nodes: GraphNode[] = [{
+      id: machine.name,
+      name: machine.name,
+      type: 'machine',
+      imageUrl: getImageForComponent({ name: machine.name, type: 'machine' })
+    }];
+    const links: GraphLink[] = [];
+
+    // Add first level components
+    machine.components.forEach(component => {
+      processComponent(component, nodes);
+      links.push({
+        source: machine.name,
+        target: component.name
+      });
+    });
+
+    // Add expanded node components
+    expandedNodes.forEach(nodeId => {
+      const components = nodeComponents.get(nodeId);
+      if (!components) return;
+
+      components.forEach(component => {
+        processComponent(component, nodes);
+        links.push({
+          source: nodeId,
+          target: component.name
+        });
+      });
+    });
+
+    return { nodes, links };
+  }, [machine, expandedNodes, nodeComponents]);
 
   // Update dimensions on resize
   useEffect(() => {
@@ -71,7 +105,7 @@ export function MachineGraph({ machine }: MachineGraphProps) {
   useEffect(() => {
     if (machine) {
       const loadImages = async () => {
-        const nodes = graphData().nodes;
+        const { nodes } = graphData();
         for (const node of nodes) {
           if (node.imageUrl && !imageCache.current.has(node.imageUrl)) {
             const img = new Image();
@@ -85,12 +119,11 @@ export function MachineGraph({ machine }: MachineGraphProps) {
       };
       loadImages();
     }
-  }, [machine]);
+  }, [machine, graphData]);
 
   const processComponent = (
     component: Component,
-    nodes: GraphNode[],
-    links: GraphLink[]
+    nodes: GraphNode[]
   ) => {
     nodes.push({
       id: component.name,
@@ -129,69 +162,32 @@ export function MachineGraph({ machine }: MachineGraphProps) {
     }
   };
 
-  const graphData = useCallback(() => {
-    if (!machine) return { nodes: [], links: [] };
-
-    const nodes: GraphNode[] = [{
-      id: machine.name,
-      name: machine.name,
-      type: 'machine',
-      imageUrl: getImageForComponent({ name: machine.name, type: 'machine' })
-    }];
-    const links: GraphLink[] = [];
-
-    // Add first level components
-    machine.components.forEach(component => {
-      processComponent(component, nodes, links);
-      links.push({
-        source: machine.name,
-        target: component.name
-      });
-    });
-
-    // Add expanded node components
-    expandedNodes.forEach(nodeId => {
-      const components = nodeComponents.get(nodeId);
-      if (!components) return;
-
-      components.forEach(component => {
-        processComponent(component, nodes, links);
-        links.push({
-          source: nodeId,
-          target: component.name
-        });
-      });
-    });
-
-    return { nodes, links };
-  }, [machine, expandedNodes, nodeComponents]);
-
-  const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-    const graphNode = node as GraphNode;
-    const label = graphNode.name;
+  const nodeCanvasObject = useCallback((obj: NodeObject, ctx: CanvasRenderingContext2D) => {
+    const node = obj as unknown as GraphNode;
+    const label = node.name;
     const fontSize = 16;
     const nodeR = 40;
 
     // Draw circle
     ctx.beginPath();
-    ctx.arc(graphNode.x!, graphNode.y!, nodeR, 0, 2 * Math.PI, false);
+    ctx.arc(node.x!, node.y!, nodeR, 0, 2 * Math.PI, false);
     ctx.fillStyle = 'white';
     ctx.fill();
-    ctx.strokeStyle = graphNode.type === 'machine' ? '#4299e1' :
-      graphNode.type === 'component' ? '#48bb78' : '#ed8936';
+    ctx.strokeStyle = node.type === 'machine' ? '#4299e1' :
+      node.type === 'component' ? '#48bb78' : '#ed8936';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
     // Draw image if available
-    if (graphNode.imageUrl && imageCache.current.has(graphNode.imageUrl)) {
-      const img = imageCache.current.get(graphNode.imageUrl)!;
+    if (node.imageUrl && imageCache.current.has(node.imageUrl)) {
+      const img = imageCache.current.get(node.imageUrl)!;
       const imgSize = nodeR * 1.2;
       ctx.save();
       ctx.clip();
       ctx.drawImage(
         img,
-        graphNode.x! - imgSize / 2,
-        graphNode.y! - imgSize / 2,
+        node.x! - imgSize / 2,
+        node.y! - imgSize / 2,
         imgSize,
         imgSize
       );
@@ -203,21 +199,21 @@ export function MachineGraph({ machine }: MachineGraphProps) {
     ctx.textBaseline = 'middle';
     ctx.font = `${fontSize}px Inter, Sans-Serif`;
     ctx.fillStyle = '#333';
-    ctx.fillText(label, graphNode.x!, graphNode.y! + nodeR + fontSize);
+    ctx.fillText(label, node.x!, node.y! + nodeR + fontSize);
 
     // Draw loading indicator or expand hint
-    if (loadingNodes.has(graphNode.id)) {
+    if (loadingNodes.has(node.id)) {
       ctx.beginPath();
-      ctx.arc(graphNode.x! + nodeR, graphNode.y! - nodeR, 5, 0, 2 * Math.PI);
+      ctx.arc(node.x! + nodeR, node.y! - nodeR, 5, 0, 2 * Math.PI);
       ctx.fillStyle = '#4299e1';
       ctx.fill();
-    } else if (graphNode.type !== 'material' && !expandedNodes.has(graphNode.id)) {
+    } else if (node.type !== 'material' && !expandedNodes.has(node.id)) {
       // Draw + symbol to indicate expandability
       ctx.beginPath();
-      ctx.moveTo(graphNode.x! + nodeR - 10, graphNode.y! - nodeR);
-      ctx.lineTo(graphNode.x! + nodeR + 10, graphNode.y! - nodeR);
-      ctx.moveTo(graphNode.x! + nodeR, graphNode.y! - nodeR - 10);
-      ctx.lineTo(graphNode.x! + nodeR, graphNode.y! - nodeR + 10);
+      ctx.moveTo(node.x! + nodeR - 10, node.y! - nodeR);
+      ctx.lineTo(node.x! + nodeR + 10, node.y! - nodeR);
+      ctx.moveTo(node.x! + nodeR, node.y! - nodeR - 10);
+      ctx.lineTo(node.x! + nodeR, node.y! - nodeR + 10);
       ctx.strokeStyle = '#4299e1';
       ctx.lineWidth = 2;
       ctx.stroke();
