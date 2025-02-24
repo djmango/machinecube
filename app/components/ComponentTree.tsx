@@ -21,7 +21,7 @@ const NODE_WIDTH = 250;
 const NODE_HEIGHT = 100;
 const ZOOM_LEVEL = 1.5;
 const ZOOM_DURATION = 800;
-const ANIMATION_DURATION = 300; // ms for node animations
+const ANIMATION_DURATION = 800; // Increased for smoother animations
 
 const elk = new ELK();
 
@@ -107,7 +107,7 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [clickedNodeId, setClickedNodeId] = useState<string | null>(null);
     const [newNodeIds, setNewNodeIds] = useState<Set<string>>(new Set());
-    const [isLoading, setIsLoading] = useState(false);
+    const [isAnimating, setIsAnimating] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const idCounterRef = useRef<{ [key: string]: number }>({});
     const layoutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -151,7 +151,7 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
         const originalName = node.id.split('-').slice(0, -1).join('-') || node.id;
         const component = findComponent(rootComponent, originalName);
         if (component) {
-            setIsLoading(true);
+            setIsAnimating(true);
             setClickedNodeId(node.id);
 
             // Mark the new nodes that will be created
@@ -243,15 +243,12 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                     // Start zoom animation immediately
                     zoomToNode(clickedNodeId);
 
-                    // Wait for zoom and node animations to complete before clearing states
+                    // Wait for zoom and animations to complete
                     layoutTimeoutRef.current = setTimeout(() => {
                         setClickedNodeId(null);
                         setNewNodeIds(new Set());
-                        // Only clear loading if we're not still generating
-                        if (!isGenerating) {
-                            setIsLoading(false);
-                        }
-                    }, ZOOM_DURATION + ANIMATION_DURATION + 200); // Add a small buffer for smoother transition
+                        setIsAnimating(false);
+                    }, ZOOM_DURATION + ANIMATION_DURATION);
                 }
             });
         }
@@ -262,15 +259,7 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                 layoutTimeoutRef.current = null;
             }
         };
-    }, [rootComponent, createNodesAndEdges, setNodes, setEdges, clickedNodeId, zoomToNode, isGenerating]);
-
-    // Add effect to handle isGenerating changes
-    useEffect(() => {
-        if (!isGenerating && !clickedNodeId) {
-            // Only clear loading when generation is complete and we're not in the middle of an animation
-            setIsLoading(false);
-        }
-    }, [isGenerating, clickedNodeId]);
+    }, [rootComponent, createNodesAndEdges, setNodes, setEdges, clickedNodeId, zoomToNode]);
 
     return (
         <div ref={containerRef} className="w-full h-full bg-slate-50 dark:bg-slate-900">
@@ -337,7 +326,7 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                         </a>
                     </div>
                 </Panel>
-                {(isLoading || isGenerating) && (
+                {(isGenerating || isAnimating) && (
                     <Panel position="top-right" className="m-3">
                         <LoadingSpinner />
                     </Panel>
