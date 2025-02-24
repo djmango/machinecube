@@ -11,6 +11,7 @@ import ReactFlow, {
     useEdgesState,
     useReactFlow,
     MarkerType,
+    MiniMap,
 } from 'reactflow';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import 'reactflow/dist/style.css';
@@ -267,6 +268,20 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                 />
                 <Controls
                     className="dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300"
+                />
+                <MiniMap
+                    nodeColor="#1e40af"
+                    nodeStrokeWidth={3}
+                    nodeClassName="dark:bg-gray-800"
+                    maskColor="rgba(0, 0, 0, 0.2)"
+                    className="dark:bg-slate-800 rounded-lg border dark:border-gray-700"
+                    style={{ background: 'rgba(255, 255, 255, 0.05)' }}
+                    pannable
+                    zoomable
+                    ariaLabel="Mini map"
+                    position="bottom-right"
+                    inversePan={false}
+                    onClick={undefined}
                 />
                 <Panel position="top-left" className="dark:text-gray-300 text-sm m-3">
                     <div className="mt-2">
