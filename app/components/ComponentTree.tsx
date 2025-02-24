@@ -25,6 +25,21 @@ const ANIMATION_DURATION = 300; // ms for node animations
 
 const elk = new ELK();
 
+const LoadingSpinner = () => (
+    <div className="animate-in-fast">
+        <div className="h-8 w-8 animate-spin">
+            <svg className="text-blue-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+            </svg>
+        </div>
+    </div>
+);
+
 const getLayoutedElements = async (nodes: Node[], edges: Edge[]) => {
     const elkNodes = nodes.map((node) => ({
         id: node.id,
@@ -84,15 +99,18 @@ const getLayoutedElements = async (nodes: Node[], edges: Edge[]) => {
 interface ComponentTreeProps {
     rootComponent: Component | null;
     onExpand: (component: Component) => void;
+    isGenerating?: boolean;
 }
 
-export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onExpand }) => {
+export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onExpand, isGenerating = false }) => {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [clickedNodeId, setClickedNodeId] = useState<string | null>(null);
     const [newNodeIds, setNewNodeIds] = useState<Set<string>>(new Set());
+    const [isLoading, setIsLoading] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const idCounterRef = useRef<{ [key: string]: number }>({});
+    const layoutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const { setViewport, getNode } = useReactFlow();
 
     const getUniqueId = useCallback((baseName: string) => {
@@ -133,21 +151,16 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
         const originalName = node.id.split('-').slice(0, -1).join('-') || node.id;
         const component = findComponent(rootComponent, originalName);
         if (component) {
+            setIsLoading(true);
             setClickedNodeId(node.id);
-            setTimeout(() => setClickedNodeId(null), 300);
 
             // Mark the new nodes that will be created
             const newIds = new Set(component.children.map(child => getUniqueId(child.name)));
             setNewNodeIds(newIds);
 
             onExpand(component);
-            setTimeout(() => {
-                zoomToNode(node.id);
-                // Clear new nodes after animation
-                setTimeout(() => setNewNodeIds(new Set()), ANIMATION_DURATION);
-            }, ANIMATION_DURATION);
         }
-    }, [onExpand, rootComponent, zoomToNode, getUniqueId, findComponent]);
+    }, [onExpand, rootComponent, getUniqueId, findComponent]);
 
     const createNodesAndEdges = useCallback((
         component: Component,
@@ -224,15 +237,49 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
             getLayoutedElements(elements.nodes, elements.edges).then(({ nodes: layoutedNodes, edges: layoutedEdges }) => {
                 setNodes(layoutedNodes);
                 setEdges(layoutedEdges);
+
+                // Only zoom and clear animations if we're coming from a click
+                if (clickedNodeId) {
+                    // Start zoom animation immediately
+                    zoomToNode(clickedNodeId);
+
+                    // Wait for zoom and node animations to complete before clearing states
+                    layoutTimeoutRef.current = setTimeout(() => {
+                        setClickedNodeId(null);
+                        setNewNodeIds(new Set());
+                        // Only clear loading if we're not still generating
+                        if (!isGenerating) {
+                            setIsLoading(false);
+                        }
+                    }, ZOOM_DURATION + ANIMATION_DURATION + 200); // Add a small buffer for smoother transition
+                }
             });
         }
-    }, [rootComponent, createNodesAndEdges, setNodes, setEdges]);
+
+        return () => {
+            if (layoutTimeoutRef.current) {
+                clearTimeout(layoutTimeoutRef.current);
+                layoutTimeoutRef.current = null;
+            }
+        };
+    }, [rootComponent, createNodesAndEdges, setNodes, setEdges, clickedNodeId, zoomToNode, isGenerating]);
+
+    // Add effect to handle isGenerating changes
+    useEffect(() => {
+        if (!isGenerating && !clickedNodeId) {
+            // Only clear loading when generation is complete and we're not in the middle of an animation
+            setIsLoading(false);
+        }
+    }, [isGenerating, clickedNodeId]);
 
     return (
         <div ref={containerRef} className="w-full h-full bg-slate-50 dark:bg-slate-900">
             <style jsx global>{`
                 .animate-in {
-                    animation: fadeIn 0.3s ease-out forwards;
+                    animation: fadeIn 0.8s ease-out forwards;
+                }
+                .animate-in-fast {
+                    animation: fadeIn 0.15s ease-out forwards;
                 }
                 @keyframes fadeIn {
                     from {
@@ -290,6 +337,11 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                         </a>
                     </div>
                 </Panel>
+                {(isLoading || isGenerating) && (
+                    <Panel position="top-right" className="m-3">
+                        <LoadingSpinner />
+                    </Panel>
+                )}
             </ReactFlow>
         </div>
     );
