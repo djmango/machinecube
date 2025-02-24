@@ -42,7 +42,7 @@ const getLayoutedElements = async (nodes: Node[], edges: Edge[]) => {
         layoutOptions: {
             'elk.algorithm': 'layered',
             'elk.direction': 'DOWN',
-            'elk.spacing.nodeNode': '10',
+            'elk.spacing.nodeNode': '1',
             'elk.layered.spacing.nodeNodeBetweenLayers': '10',
             'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
             'elk.layered.crossingMinimization.strategy': 'INTERACTIVE',
