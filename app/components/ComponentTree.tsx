@@ -183,7 +183,7 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                 subLabel: 'Click to expand'
             },
             draggable: false,
-            className: `bg-[#1a2236] border-2 border-indigo-500/50 rounded-xl p-4
+            className: `bg-[#1e293b] border-2 border-indigo-500/50 rounded-xl p-4
                 hover:shadow-lg hover:border-indigo-400 
                 shadow-[0_4px_12px_rgba(0,0,0,0.2)] 
                 cursor-pointer transition-all duration-300
@@ -279,6 +279,7 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
 
                 .react-flow__node {
                     font-family: ui-sans-serif, system-ui, sans-serif;
+                    background-color: #43536b !important;
                 }
 
                 .react-flow__node-default {
