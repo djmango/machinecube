@@ -12,8 +12,6 @@ import ReactFlow, {
     MarkerType,
     MiniMap,
     BackgroundVariant,
-    Handle,
-    Position,
 } from 'reactflow';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import 'reactflow/dist/style.css';
@@ -39,15 +37,6 @@ const LoadingSpinner = () => (
                 />
             </svg>
         </div>
-    </div>
-);
-
-// Custom node component for better styling
-const CustomNode = ({ data }: { data: { label: string } }) => (
-    <div className="flex flex-col items-center justify-center w-full h-full p-3 text-center">
-        <Handle type="target" position={Position.Top} id="target" className="w-3 h-3 bg-indigo-500" />
-        <div className="font-medium text-white">{data.label}</div>
-        <Handle type="source" position={Position.Bottom} id="source" className="w-3 h-3 bg-indigo-500" />
     </div>
 );
 
@@ -170,16 +159,17 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
         }
     }, [onExpand, rootComponent, getUniqueId, findComponent]);
 
-    const createNodesAndEdges = (
+    const createNodesAndEdges = useCallback((
         component: Component,
         parentId: string | null = null,
-        level: number = 0,
-        clickedNodeId: string | null,
-        newNodeIds: Set<string>,
-        getUniqueId: (name: string) => string
+        level: number = 0
     ): { nodes: Node[], edges: Edge[] } => {
         const nodes: Node[] = [];
         const edges: Edge[] = [];
+
+        if (level === 0) {
+            idCounterRef.current = {};
+        }
 
         const nodeId = getUniqueId(component.name);
         const isClicked = nodeId === clickedNodeId;
@@ -189,19 +179,20 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
             id: nodeId,
             position: { x: 0, y: 0 },
             data: {
-                label: component.name.replace(/\b\w/g, l => l.toUpperCase())
+                label: component.name.replace(/\b\w/g, l => l.toUpperCase()),
+                subLabel: 'Click to expand'
             },
             draggable: false,
-            type: 'custom',
-            className: `bg-[#1a2236] border border-indigo-500/30 rounded-xl
-                hover:shadow-lg hover:border-indigo-400/60 
-                shadow-[0_4px_12px_rgba(0,0,0,0.1)] 
+            className: `bg-[#1a2236] border-2 border-indigo-500/50 rounded-xl p-4
+                hover:shadow-lg hover:border-indigo-400 
+                shadow-[0_4px_12px_rgba(0,0,0,0.2)] 
                 cursor-pointer transition-all duration-300
-                ${isClicked ? 'scale-105 border-indigo-400 shadow-indigo-500/20' : ''}
+                ${isClicked ? 'scale-105 border-indigo-400 shadow-indigo-500/30' : ''}
                 ${isNew ? 'animate-in' : ''}`,
             style: {
                 width: NODE_WIDTH,
                 height: NODE_HEIGHT,
+                color: '#e2e8f0',
             },
         };
         nodes.push(newNode);
@@ -211,19 +202,17 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                 id: `${parentId}-${nodeId}`,
                 source: parentId,
                 target: nodeId,
-                sourceHandle: 'source',
-                targetHandle: 'target',
                 type: 'smoothstep',
                 style: {
-                    stroke: '#6366f1',
-                    strokeWidth: 2,
+                    stroke: '#818cf8',
+                    strokeWidth: 2.5,
                 },
                 animated: true,
                 markerEnd: {
                     type: MarkerType.ArrowClosed,
                     width: 20,
                     height: 20,
-                    color: '#6366f1',
+                    color: '#818cf8',
                 },
                 zIndex: 10,
             };
@@ -232,30 +221,18 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
 
         if (component.children.length > 0) {
             component.children.forEach((child) => {
-                const childElements = createNodesAndEdges(child, nodeId, level + 1, clickedNodeId, newNodeIds, getUniqueId);
+                const childElements = createNodesAndEdges(child, nodeId, level + 1);
                 nodes.push(...childElements.nodes);
                 edges.push(...childElements.edges);
             });
         }
 
         return { nodes, edges };
-    };
-
-    const createNodesAndEdgesCallback = useCallback((
-        component: Component,
-        parentId: string | null = null,
-        level: number = 0
-    ): { nodes: Node[], edges: Edge[] } => {
-        if (level === 0) {
-            idCounterRef.current = {};
-        }
-
-        return createNodesAndEdges(component, parentId, level, clickedNodeId, newNodeIds, getUniqueId);
-    }, [clickedNodeId, newNodeIds, getUniqueId]);
+    }, [getUniqueId, clickedNodeId, newNodeIds]);
 
     useEffect(() => {
         if (rootComponent) {
-            const elements = createNodesAndEdgesCallback(rootComponent, null);
+            const elements = createNodesAndEdges(rootComponent, null);
             getLayoutedElements(elements.nodes, elements.edges).then(({ nodes: layoutedNodes, edges: layoutedEdges }) => {
                 setNodes(layoutedNodes);
                 setEdges(layoutedEdges);
@@ -278,12 +255,7 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                 layoutTimeoutRef.current = null;
             }
         };
-    }, [rootComponent, createNodesAndEdgesCallback, setNodes, setEdges, clickedNodeId, zoomToNode]);
-
-    // Define the custom node types
-    const nodeTypes = {
-        custom: CustomNode,
-    };
+    }, [rootComponent, createNodesAndEdges, setNodes, setEdges, clickedNodeId, zoomToNode]);
 
     return (
         <div ref={containerRef} className="w-full h-full bg-[#111827]">
@@ -312,11 +284,25 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                 .react-flow__node-default {
                     background: transparent;
                     display: flex;
+                    flex-direction: column;
                     align-items: center;
                     justify-content: center;
                     font-weight: 500;
                     padding: 0;
                     line-height: 1.3;
+                    color: #e2e8f0;
+                }
+
+                .react-flow__node-default .react-flow__node-default__label {
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: #e2e8f0;
+                }
+
+                .react-flow__node-default .react-flow__node-default__sublabel {
+                    font-size: 12px;
+                    color: #94a3b8;
+                    margin-top: 4px;
                 }
 
                 .react-flow__node:hover {
@@ -330,32 +316,15 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
 
                 .react-flow__handle {
                     opacity: 0;
-                    width: 10px;
-                    height: 10px;
-                    border-radius: 50%;
-                    background-color: #6366f1;
-                    border: none;
-                    transition: opacity 0.3s;
-                }
-
-                .react-flow__node:hover .react-flow__handle {
-                    opacity: 0.8;
-                }
-
-                .react-flow__handle-top {
-                    top: -5px;
-                }
-
-                .react-flow__handle-bottom {
-                    bottom: -5px;
                 }
 
                 .react-flow__edge-path {
-                    stroke-width: 2;
+                    stroke-width: 2.5;
                 }
 
                 .react-flow__edge {
                     z-index: 5;
+                    filter: drop-shadow(0 0 2px rgba(129, 140, 248, 0.3));
                 }
 
                 .react-flow__edge-interaction {
@@ -398,7 +367,6 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                 onNodeClick={handleNodeClick}
                 nodesDraggable={false}
                 nodesConnectable={false}
-                nodeTypes={nodeTypes}
                 fitView
                 fitViewOptions={{
                     padding: 0.5,

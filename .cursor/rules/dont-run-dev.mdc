@@ -1,0 +1,8 @@
+---
+description: When evaluating changes of the site
+globs: 
+---
+
+# Your rule content
+
+- No need to run bun run dev or similar commands to validate changes, as I will already have this running in a terminal with live reloading
