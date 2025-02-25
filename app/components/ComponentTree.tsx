@@ -11,23 +11,26 @@ import ReactFlow, {
     useReactFlow,
     MarkerType,
     MiniMap,
+    BackgroundVariant,
+    Handle,
+    Position,
 } from 'reactflow';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import 'reactflow/dist/style.css';
 import { Component } from '../types/machines';
 
-const NODE_WIDTH = 250;
-const NODE_HEIGHT = 100;
+const NODE_WIDTH = 180;
+const NODE_HEIGHT = 80;
 const ZOOM_LEVEL = 1.5;
 const ZOOM_DURATION = 800;
-const ANIMATION_DURATION = 800; // Increased for smoother animations
+const ANIMATION_DURATION = 800;
 
 const elk = new ELK();
 
 const LoadingSpinner = () => (
     <div className="animate-in-fast">
         <div className="h-8 w-8 animate-spin">
-            <svg className="text-blue-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg className="text-indigo-400" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path
                     className="opacity-75"
@@ -36,6 +39,15 @@ const LoadingSpinner = () => (
                 />
             </svg>
         </div>
+    </div>
+);
+
+// Custom node component for better styling
+const CustomNode = ({ data }: { data: { label: string } }) => (
+    <div className="flex flex-col items-center justify-center w-full h-full p-3 text-center">
+        <Handle type="target" position={Position.Top} id="target" className="w-3 h-3 bg-indigo-500" />
+        <div className="font-medium text-white">{data.label}</div>
+        <Handle type="source" position={Position.Bottom} id="source" className="w-3 h-3 bg-indigo-500" />
     </div>
 );
 
@@ -57,8 +69,8 @@ const getLayoutedElements = async (nodes: Node[], edges: Edge[]) => {
         layoutOptions: {
             'elk.algorithm': 'layered',
             'elk.direction': 'DOWN',
-            'elk.spacing.nodeNode': '1',
-            'elk.layered.spacing.nodeNodeBetweenLayers': '10',
+            'elk.spacing.nodeNode': '30',
+            'elk.layered.spacing.nodeNodeBetweenLayers': '70',
             'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
             'elk.layered.crossingMinimization.strategy': 'INTERACTIVE',
             'elk.layered.considerModelOrder.strategy': 'PREFER_NODES',
@@ -121,11 +133,9 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
         const node = getNode(nodeId);
         if (!node) return;
 
-        // Calculate the center position of the node
         const x = node.position.x + NODE_WIDTH / 2;
         const y = node.position.y + NODE_HEIGHT / 2;
 
-        // Smoothly zoom to the node
         setViewport(
             {
                 x: -x * ZOOM_LEVEL + window.innerWidth / 2,
@@ -153,7 +163,6 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
             setIsAnimating(true);
             setClickedNodeId(node.id);
 
-            // Mark the new nodes that will be created
             const newIds = new Set(component.children.map(child => getUniqueId(child.name)));
             setNewNodeIds(newIds);
 
@@ -161,17 +170,16 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
         }
     }, [onExpand, rootComponent, getUniqueId, findComponent]);
 
-    const createNodesAndEdges = useCallback((
+    const createNodesAndEdges = (
         component: Component,
         parentId: string | null = null,
-        level: number = 0
+        level: number = 0,
+        clickedNodeId: string | null,
+        newNodeIds: Set<string>,
+        getUniqueId: (name: string) => string
     ): { nodes: Node[], edges: Edge[] } => {
         const nodes: Node[] = [];
         const edges: Edge[] = [];
-
-        if (level === 0) {
-            idCounterRef.current = {};
-        }
 
         const nodeId = getUniqueId(component.name);
         const isClicked = nodeId === clickedNodeId;
@@ -181,18 +189,19 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
             id: nodeId,
             position: { x: 0, y: 0 },
             data: {
-                label: component.name.replace(/\b\w/g, l => l.toUpperCase()),
-                subLabel: 'Click to expand'
+                label: component.name.replace(/\b\w/g, l => l.toUpperCase())
             },
             draggable: false,
-            className: `bg-white dark:bg-gray-800 border-2 border-blue-500 dark:border-blue-400 rounded-lg p-4 
-                hover:shadow-xl hover:border-blue-600 dark:hover:border-blue-500 
-                shadow-[0_8px_16px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_16px_rgba(0,0,0,0.3)] 
-                cursor-pointer backdrop-blur-sm transition-all duration-300
-                ${isClicked ? 'scale-110 border-blue-600' : ''}
+            type: 'custom',
+            className: `bg-[#1a2236] border border-indigo-500/30 rounded-xl
+                hover:shadow-lg hover:border-indigo-400/60 
+                shadow-[0_4px_12px_rgba(0,0,0,0.1)] 
+                cursor-pointer transition-all duration-300
+                ${isClicked ? 'scale-105 border-indigo-400 shadow-indigo-500/20' : ''}
                 ${isNew ? 'animate-in' : ''}`,
             style: {
-                opacity: 1,
+                width: NODE_WIDTH,
+                height: NODE_HEIGHT,
             },
         };
         nodes.push(newNode);
@@ -202,47 +211,58 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                 id: `${parentId}-${nodeId}`,
                 source: parentId,
                 target: nodeId,
+                sourceHandle: 'source',
+                targetHandle: 'target',
                 type: 'smoothstep',
                 style: {
-                    stroke: '#94a3b8',
+                    stroke: '#6366f1',
                     strokeWidth: 2,
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 },
                 animated: true,
                 markerEnd: {
-                    type: MarkerType.Arrow,
+                    type: MarkerType.ArrowClosed,
                     width: 20,
                     height: 20,
-                    color: '#94a3b8',
+                    color: '#6366f1',
                 },
+                zIndex: 10,
             };
             edges.push(newEdge);
         }
 
         if (component.children.length > 0) {
             component.children.forEach((child) => {
-                const childElements = createNodesAndEdges(child, nodeId, level + 1);
+                const childElements = createNodesAndEdges(child, nodeId, level + 1, clickedNodeId, newNodeIds, getUniqueId);
                 nodes.push(...childElements.nodes);
                 edges.push(...childElements.edges);
             });
         }
 
         return { nodes, edges };
-    }, [getUniqueId, clickedNodeId, newNodeIds]);
+    };
+
+    const createNodesAndEdgesCallback = useCallback((
+        component: Component,
+        parentId: string | null = null,
+        level: number = 0
+    ): { nodes: Node[], edges: Edge[] } => {
+        if (level === 0) {
+            idCounterRef.current = {};
+        }
+
+        return createNodesAndEdges(component, parentId, level, clickedNodeId, newNodeIds, getUniqueId);
+    }, [clickedNodeId, newNodeIds, getUniqueId]);
 
     useEffect(() => {
         if (rootComponent) {
-            const elements = createNodesAndEdges(rootComponent, null);
+            const elements = createNodesAndEdgesCallback(rootComponent, null);
             getLayoutedElements(elements.nodes, elements.edges).then(({ nodes: layoutedNodes, edges: layoutedEdges }) => {
                 setNodes(layoutedNodes);
                 setEdges(layoutedEdges);
 
-                // Only zoom and clear animations if we're coming from a click
                 if (clickedNodeId) {
-                    // Start zoom animation immediately
                     zoomToNode(clickedNodeId);
 
-                    // Wait for zoom and animations to complete
                     layoutTimeoutRef.current = setTimeout(() => {
                         setClickedNodeId(null);
                         setNewNodeIds(new Set());
@@ -258,10 +278,15 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                 layoutTimeoutRef.current = null;
             }
         };
-    }, [rootComponent, createNodesAndEdges, setNodes, setEdges, clickedNodeId, zoomToNode]);
+    }, [rootComponent, createNodesAndEdgesCallback, setNodes, setEdges, clickedNodeId, zoomToNode]);
+
+    // Define the custom node types
+    const nodeTypes = {
+        custom: CustomNode,
+    };
 
     return (
-        <div ref={containerRef} className="w-full h-full bg-slate-50 dark:bg-slate-900">
+        <div ref={containerRef} className="w-full h-full bg-[#111827]">
             <style jsx global>{`
                 .animate-in {
                     animation: fadeIn 0.8s ease-out forwards;
@@ -279,6 +304,91 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                         transform: scale(1) translateY(0);
                     }
                 }
+
+                .react-flow__node {
+                    font-family: ui-sans-serif, system-ui, sans-serif;
+                }
+
+                .react-flow__node-default {
+                    background: transparent;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-weight: 500;
+                    padding: 0;
+                    line-height: 1.3;
+                }
+
+                .react-flow__node:hover {
+                    transform: translateY(-2px);
+                }
+
+                .react-flow__node.selected {
+                    border-color: rgb(129 140 248 / 0.6);
+                    box-shadow: 0 0 0 2px rgb(129 140 248 / 0.2);
+                }
+
+                .react-flow__handle {
+                    opacity: 0;
+                    width: 10px;
+                    height: 10px;
+                    border-radius: 50%;
+                    background-color: #6366f1;
+                    border: none;
+                    transition: opacity 0.3s;
+                }
+
+                .react-flow__node:hover .react-flow__handle {
+                    opacity: 0.8;
+                }
+
+                .react-flow__handle-top {
+                    top: -5px;
+                }
+
+                .react-flow__handle-bottom {
+                    bottom: -5px;
+                }
+
+                .react-flow__edge-path {
+                    stroke-width: 2;
+                }
+
+                .react-flow__edge {
+                    z-index: 5;
+                }
+
+                .react-flow__edge-interaction {
+                    stroke-width: 10;
+                }
+
+                .react-flow__edge-text {
+                    font-size: 12px;
+                }
+
+                .react-flow__minimap {
+                    background-color: #1a2236;
+                    border-radius: 12px;
+                    border: 1px solid rgb(129 140 248 / 0.2);
+                    overflow: hidden;
+                }
+
+                .react-flow__minimap-mask {
+                    fill: rgb(129 140 248 / 0.1);
+                }
+
+                .react-flow__minimap-node {
+                    fill: rgb(129 140 248 / 0.6);
+                    stroke: rgb(129 140 248 / 0.3);
+                }
+
+                .react-flow__controls {
+                    display: none;
+                }
+
+                .react-flow__attribution {
+                    display: none;
+                }
             `}</style>
             <ReactFlow
                 nodes={nodes}
@@ -288,40 +398,32 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                 onNodeClick={handleNodeClick}
                 nodesDraggable={false}
                 nodesConnectable={false}
+                nodeTypes={nodeTypes}
                 fitView
                 fitViewOptions={{
-                    padding: 0.3,
+                    padding: 0.5,
                     duration: ZOOM_DURATION
                 }}
                 proOptions={{ hideAttribution: true }}
-                className="dark:bg-slate-900"
+                className="bg-[#111827]"
             >
                 <Background
-                    color="#475569"
-                    className="dark:opacity-20 opacity-10"
-                    size={20}
+                    color="rgb(129 140 248 / 0.2)"
+                    className="opacity-10"
+                    variant={BackgroundVariant.Lines}
+                    size={1}
+                    gap={20}
                 />
                 <MiniMap
-                    nodeColor="#1e40af"
-                    nodeStrokeWidth={3}
-                    nodeClassName="dark:bg-gray-800"
-                    maskColor="rgba(0, 0, 0, 0.2)"
-                    className="dark:bg-slate-800 rounded-lg border dark:border-gray-700"
-                    style={{ background: 'rgba(255, 255, 255, 0.05)' }}
+                    nodeColor="rgb(129 140 248 / 0.6)"
+                    nodeStrokeWidth={2}
+                    nodeStrokeColor="rgb(129 140 248 / 0.3)"
+                    maskColor="rgba(26, 34, 54, 0.7)"
+                    className="!bg-[#1a2236]"
+                    style={{ right: 12, bottom: 12 }}
                     pannable
                     zoomable
-                    ariaLabel="Mini map"
-                    position="bottom-right"
-                    inversePan={false}
-                    onClick={undefined}
                 />
-                <Panel position="top-left" className="dark:text-gray-300 text-sm m-3">
-                    <div className="mt-2">
-                        <a href="https://x.com/sulaimanghori" target="_blank" rel="noopener noreferrer" className="hover:text-blue-500">
-                            Everything is made of other things.
-                        </a>
-                    </div>
-                </Panel>
                 {(isGenerating || isAnimating) && (
                     <Panel position="top-right" className="m-3">
                         <LoadingSpinner />
