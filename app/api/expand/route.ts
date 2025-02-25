@@ -38,22 +38,12 @@ async function generateChildComponents(componentName: string, ancestry: string[]
         : '';
 
     const systemPrompt = `You are a precision manufacturing engineer specializing in machine component design and assembly.
-    Output only valid JSON matching the following structure, with multiple levels of physical subcomponents:
+    You must output ONLY valid JSON matching this exact structure, with no additional text or explanation:
     {
         "children": [
             {
                 "name": "string (specific physical part)",
-                "children": [
-                    {
-                        "name": "string (subcomponent)",
-                        "children": [
-                            {
-                                "name": "string (further subcomponent)",
-                                "children": []
-                            }
-                        ]
-                    }
-                ]
+                "children": []
             }
         ]
     }
@@ -102,7 +92,9 @@ async function generateChildComponents(componentName: string, ancestry: string[]
     - Show at least 2-3 levels of subcomponents where applicable
     - Include all mounting hardware and physical interfaces
     - Specify actual mechanical connections
-    NO abstract concepts or functions - ONLY real, physical parts.`;
+    NO abstract concepts or functions - ONLY real, physical parts.
+
+    IMPORTANT: Output ONLY the JSON structure with no additional text or explanation.`;
 
     try {
         const response = await model.invoke([
@@ -110,20 +102,50 @@ async function generateChildComponents(componentName: string, ancestry: string[]
             { role: "user", content: userPrompt }
         ]);
 
-        // Extract just the JSON part from the response
-        const responseText = response.content as string;
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        // Extract and clean the JSON from the response
+        const responseText = (response.content as string).trim();
+        let jsonStr = responseText;
+
+        // If the response is wrapped in backticks or code blocks, remove them
+        jsonStr = jsonStr.replace(/^```json\n|\n```$/g, '');
+        jsonStr = jsonStr.replace(/^```\n|\n```$/g, '');
+
+        // Try to find a JSON object if the response contains other text
+        const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
-            throw new Error('No JSON found in response');
+            throw new Error('No valid JSON found in response');
         }
 
-        const content = JSON.parse(jsonMatch[0]) as ComponentResponse;
+        let content: ComponentResponse;
+        try {
+            content = JSON.parse(jsonMatch[0]) as ComponentResponse;
+        } catch (parseError) {
+            console.error('JSON Parse Error:', parseError);
+            console.error('Raw JSON string:', jsonMatch[0]);
+            throw new Error('Failed to parse LLM response as JSON');
+        }
+
         if (!content || typeof content !== 'object') {
             throw new Error('Invalid response format from LLM');
         }
 
-        if (!Array.isArray(content.children) || content.children.length === 0) {
-            throw new Error('Invalid response structure from LLM - no children found');
+        if (!Array.isArray(content.children)) {
+            throw new Error('Invalid response structure - children is not an array');
+        }
+
+        if (content.children.length === 0) {
+            throw new Error('No components generated - empty children array');
+        }
+
+        // Validate the structure of each child
+        const validateComponent = (comp: ComponentChild): boolean => {
+            if (!comp.name || typeof comp.name !== 'string') return false;
+            if (!Array.isArray(comp.children)) return false;
+            return comp.children.every(child => validateComponent(child));
+        };
+
+        if (!content.children.every(child => validateComponent(child))) {
+            throw new Error('Invalid component structure in response');
         }
 
         // Recursively map the nested structure to the Component type
@@ -132,14 +154,14 @@ async function generateChildComponents(componentName: string, ancestry: string[]
                 name: child.name,
                 children: child.children.map(c => ({
                     ...mapToComponent(c),
-                    parent: null as unknown as Component // Will be set by the parent component
+                    parent: null as unknown as Component
                 }))
             };
         }
 
         return content.children.map(child => ({
             ...mapToComponent(child),
-            parent: null as unknown as Component // Will be set by the parent component
+            parent: null as unknown as Component
         }));
     } catch (error) {
         console.error('Error in generateChildComponents:', error);
@@ -154,13 +176,21 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Component name and ancestry are required' }, { status: 400 });
         }
 
-        const children = await generateChildComponents(componentName, ancestry);
-        return NextResponse.json(children);
+        try {
+            const children = await generateChildComponents(componentName, ancestry);
+            return NextResponse.json(children);
+        } catch (error) {
+            console.error('Generation error:', error);
+            return NextResponse.json(
+                { error: error instanceof Error ? error.message : 'Failed to generate components' },
+                { status: 500 }
+            );
+        }
     } catch (error) {
-        console.error('Error expanding component:', error);
+        console.error('Request error:', error);
         return NextResponse.json(
-            { error: 'Failed to expand component' },
-            { status: 500 }
+            { error: 'Invalid request format' },
+            { status: 400 }
         );
     }
 } 

@@ -5,7 +5,6 @@ import ReactFlow, {
     Node,
     Edge,
     Background,
-    Controls,
     Panel,
     useNodesState,
     useEdgesState,
@@ -301,9 +300,6 @@ export const ComponentTree: React.FC<ComponentTreeProps> = ({ rootComponent, onE
                     color="#475569"
                     className="dark:opacity-20 opacity-10"
                     size={20}
-                />
-                <Controls
-                    className="dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300"
                 />
                 <MiniMap
                     nodeColor="#1e40af"
